@@ -5,6 +5,10 @@
 #include<math.h>
 #include<time.h>
 #define PI 3.1415926
+//#define DELTA 1/exp(1)
+#define BETA 0.1
+#define P1 0.9
+#define P2 0.1
 
 
 //#define UNUM 2
@@ -20,10 +24,10 @@
 //#define ASIZE 9973
 #define TEMP_MAX 30
 
-#define DATA_DIMENSION 128 
+#define DATA_DIMENSION 128
 #define dimension 128	// dimension
-#define BLOOM_L 4	// the number of bloom(parameter L in lsh)
-#define k_hfun 8	// the number of h_function(parameter K in lsh)
+//#define BLOOM_L 4	// the number of bloom(parameter L in lsh)
+#define k_hfun 4	// the number of h_function(parameter K in lsh)
 #define W 1 		// The default value for lsh algorithm parameter W
 
 
@@ -105,10 +109,10 @@ int getindex(BLOOM *bloom, unsigned *temp);					// get g(v) = ((lsh_r*h(v))mod p
 unsigned int *getvector(BLOOM* bloom, float *f,float R, int n); 	// get temp[0...k-1] = [h1(v)...hk(v)]
 
 // init L bloom filter
-BLOOM **bloom_create(int nfuncs, int size);
+BLOOM **bloom_create(int nfuncs, int size,int BLOOM_L);
 
-// set L bloom filter using dataset						
-DATA_INDEX **bloom_set(BLOOM **bloom, float **dataset, int dataNum,float R);
+// set L bloom filter using dataset
+DATA_INDEX **bloom_set(BLOOM **bloom, float **dataset, int dataNum,float R,int BLOOM_L);
 
 
 int * distance(DATA_INDEX *sourcepoint, unsigned int index,int datasetNum,float *s,float R,int flag[],float **dataset,int *real_num,int *true_num);
@@ -116,15 +120,15 @@ int * distance(DATA_INDEX *sourcepoint, unsigned int index,int datasetNum,float 
 float distanceSqr(float *p1,float *p2,float threshold);
 
 // check whether point s is similar to dataset
-float *bloom_check_similar(BLOOM **bloom, float *s,float R,DATA_INDEX **dataindex,int dataNum,float **dataset);	
+float *bloom_check_similar(BLOOM **bloom, float *s,float R,DATA_INDEX **dataindex,int dataNum,float **dataset,int BLOOM_L);
 
 // destory L bloom filter
-int bloom_destroy(BLOOM **bloom);	
+int bloom_destroy(BLOOM **bloom,int BLOOM_L);
 
-int data_destroy(int datasetNum,int queryNum,int vectorNum);	
+int data_destroy(int datasetNum,int queryNum,int vectorNum);
 
 //int bloom_m_destroy(BLOOM_M **bloom_m,int m,int nfuncs);
 
-int sourcepoint_destroy(DATA_INDEX **sourcepoint,int datasetNum);	
+int sourcepoint_destroy(DATA_INDEX **sourcepoint,int datasetNum,int BLOOM_L);
 
-float *exact(FILE *fp,int datasetNum,float **dataset,int queryNum,float **queryset,float R);				
+float *exact(FILE *fp,int datasetNum,float **dataset,int queryNum,float **queryset,float R);

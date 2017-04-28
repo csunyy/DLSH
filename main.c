@@ -119,7 +119,7 @@ int genRandomInt(int rangeStart, int rangeEnd)
 }
 
 //init L bloom filters.
-BLOOM **bloom_create(int nfuncs, int size)
+BLOOM **bloom_create(int nfuncs, int size, int BLOOM_L)
 {
 	BLOOM **bloom;
 	int i,j,k,l;
@@ -130,7 +130,7 @@ BLOOM **bloom_create(int nfuncs, int size)
 	// {
 		// lsh_r[k] = genRandomInt(1, MAX_HASH_RND);
 	// }
-	
+
 	// init L bloom filters
 	if (!(bloom = (BLOOM **) malloc(BLOOM_L * sizeof(BLOOM *))))
 		return NULL;
@@ -157,7 +157,7 @@ BLOOM **bloom_create(int nfuncs, int size)
 			bloom[i]->para_a[j] = (float *)malloc(dimension *sizeof(float));
 		}
 		bloom[i]->para_b = (float*)malloc(nfuncs*sizeof(float));
-		
+
 		for(k = 0; k < nfuncs; k ++)
 		{
 			for(l = 0; l < dimension; l ++)
@@ -189,7 +189,7 @@ int getindex(BLOOM* bloom, unsigned *temp)
 }
 
 // in this function, we get h(v) and store to temp
-unsigned int *getvector(BLOOM* bloom, float *f,float R, int n) 
+unsigned int *getvector(BLOOM* bloom, float *f,float R, int n)
 {
 	int i,j,k;
     float result = 0;
@@ -202,22 +202,22 @@ unsigned int *getvector(BLOOM* bloom, float *f,float R, int n)
 	    {
 		    result += f[k] * ((*(bloom->para_a[i] + k))/R);
 	    }
-		result/=W/pow(2,n);
+		result/=W/pow(2,n);//
         vec[i] = (unsigned) (floor(result)); // h(v) = (a.v+b)/w
 	}
        return vec;
 }
 
 // set L bloom filter using dataset
-DATA_INDEX **bloom_set(BLOOM **bloom, float **dataset, int datasetNum,float R) 
+DATA_INDEX **bloom_set(BLOOM **bloom, float **dataset, int datasetNum, float R, int BLOOM_L)
 {
 	int i, j,k,m;
 	unsigned int index, *temp;
         DATA_INDEX **sourcepoint;
-        
+
         if (!(sourcepoint = (DATA_INDEX **) malloc(BLOOM_L * sizeof(DATA_INDEX *))))
 		return NULL;
-	for (i = 0; i < BLOOM_L; i++)	
+	for (i = 0; i < BLOOM_L; i++)
 	{
         if (!(sourcepoint[i] = (DATA_INDEX *) malloc(sizeof(DATA_INDEX))))
 		{
@@ -259,7 +259,7 @@ int * distance(DATA_INDEX *sourcepoint, unsigned int index,int datasetNum,float 
       int j = 0;
       float result;
       for(j = 0;j < datasetNum; j++)
-      {  
+      {
 	      if(sourcepoint->index[j] == index)
             {
 				if(flag[j] == 0)
@@ -272,13 +272,13 @@ int * distance(DATA_INDEX *sourcepoint, unsigned int index,int datasetNum,float 
 						*true_num += 1;//result_true_num
 					}
 					flag[j] += 1;//mark the item compared
-				}                    
+				}
             }
       }
       return NULL;
 }
 
-int sourcepoint_destroy(DATA_INDEX **sourcepoint,int datasetNum)
+int sourcepoint_destroy(DATA_INDEX **sourcepoint,int datasetNum,int BLOOM_L)
 {
         int i,j;
         for(i = 0;i < BLOOM_L;i ++)
@@ -291,7 +291,7 @@ int sourcepoint_destroy(DATA_INDEX **sourcepoint,int datasetNum)
 }
 
 
-int bloom_destroy(BLOOM **bloom)
+int bloom_destroy(BLOOM **bloom,int BLOOM_L)
 {
 	int i, j, k;
 	for (i = 0; i < BLOOM_L; i++)
@@ -335,7 +335,7 @@ int data_destroy(int datasetNum,int queryNum, int vectorNum)
 }
 
 
-float *bloom_check_similar(BLOOM **bloom, float *s,float R,DATA_INDEX **sourcepoint,int datasetNum,float **dataset)
+float *bloom_check_similar(BLOOM **bloom, float *s,float R,DATA_INDEX **sourcepoint,int datasetNum,float **dataset,int BLOOM_L)
 {
 	int i,j,k;
   	int *flag1,*flag2;
@@ -392,7 +392,7 @@ float *bloom_check_similar(BLOOM **bloom, float *s,float R,DATA_INDEX **sourcepo
 							flag2[j] = 1;//mark the item compared
 						}
 					}
-					
+
 				}
 			}
 		}
@@ -469,9 +469,26 @@ int main(int nargs, char **args) {
 	R = atof(args[3]);
 	getds(args[4], datasetNum);
     getqs(args[5], queryNum);
+
+    //compute the number of hash tables
+    float DELTA = 1/EXP(1);
+	float a = LOG(2/BETA), b = LOG(1/DELTA);
+	printf("a = %f\n",a);
+	printf("b = %f\n",b);
+	float eta = SQRT(a/b);
+	float alpha = (eta * P1 + P2)/(1 + eta);
+	float c = SQR(SQRT(a) + SQRT(b));
+	printf("c = %f\n",c);
+	float q = 2 * SQR(P1 - P2);
+	printf("q = %f\n",q);
+	int BLOOM_L = floor(c/q);
+	printf("BLOOM_L = %d\n",BLOOM_L);
+	//finish the computation
+
 	getvs(args[6], BLOOM_L * k_hfun);
 	//getfs(args[7], DATA_DIMENSION);
-    P = atof(args[7]); 
+    P = atof(args[7]);
+
 	//final_result = (int *)malloc(2*sizeof(int));
 	sprintf(fname, "%s_K_%d_L_%d_R_%s_Wpca_result.txt", args[4], k_hfun, BLOOM_L, args[3]);
 	// fname = args[4];
@@ -482,14 +499,14 @@ int main(int nargs, char **args) {
 	if(!(fp=fopen(fname,"w+"))){
 		printf("Failure to open result.txt!\n");
 	}
-      
-    if(!(bloom = bloom_create(k_hfun,ASIZE)))
+
+    if(!(bloom = bloom_create(k_hfun,ASIZE,BLOOM_L)))
 	{
 		printf("ERROR: Could not create bloom filter\n");
 		return -1;
     }
   //  printf("Create bloom succeed!\n");
-    sourcepoint=bloom_set(bloom, dataset, datasetNum, R);
+    sourcepoint=bloom_set(bloom, dataset, datasetNum, R,BLOOM_L);
   //  printf("Set bloom succeed!\n");
 //query
 //	printf("\t**********exact query**********\n");
@@ -499,13 +516,13 @@ int main(int nargs, char **args) {
 		exact_num = total[0];
 		total_weight = total[1];
 		printf("total_weight = %f\n",total_weight);
-		
+
 	//	printf("\t**********similar query**********\n");
 		fprintf(fp,"\t**********similar query**********\n");
 		start = clock();
      	for(i = 0; i < queryNum; i++)
 		{
-			final_result = bloom_check_similar(bloom, queryset[i],R,sourcepoint,datasetNum,dataset);
+			final_result = bloom_check_similar(bloom, queryset[i],R,sourcepoint,datasetNum,dataset,BLOOM_L);
 			//similar_weight = bloom_check_similar(bloom, queryset[i],R,sourcepoint,datasetNum,dataset,similar_weight);
 			//fprintf(fp,"Query Point %d: found %d right points among %d similar points\n", i, final_result[1], final_result[0]);
 			//printf("Query Point %d: found %d right points among %d similar points\n", i, final_result[1], final_result[0]);
@@ -519,7 +536,7 @@ int main(int nargs, char **args) {
 		printf("similar_weight = %f\n",similar_weight);
 		fprintf(fp,"\n\n");
 		printf("\n\n");
-	
+
 		fprintf(fp,"similar points: %d, right points(find): %d, exact points: %d\n",result_num,similar_num,exact_num);
 		printf("similar points: %d, right points(find): %d, exact points: %d\n",result_num,similar_num,exact_num);
 		//recall = similar_num*1.0/exact_num;
@@ -531,8 +548,8 @@ int main(int nargs, char **args) {
 		//printf("when k = %d, L = %d, R = %f, recall = %f\n",k_hfun,R,BLOOM_L,recall);
 		fclose(fp);
 
-		bloom_destroy(bloom);
-		sourcepoint_destroy(sourcepoint,datasetNum);
+		bloom_destroy(bloom,BLOOM_L);
+		sourcepoint_destroy(sourcepoint,datasetNum,BLOOM_L);
 		data_destroy(datasetNum,queryNum,BLOOM_L*k_hfun);
 		printf("\t******over******\n");
 
